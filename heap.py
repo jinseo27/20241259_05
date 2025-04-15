@@ -51,14 +51,14 @@ class Heap:
 
 heap = Heap()
 
-with open("C:/Users/2leej/Downloads/DS_Birthdaydata - 시트1.csv", newline='', encoding='utf-8') as csvfile:
+with open("birthday.csv", newline='') as csvfile:
     reader = csv.DictReader(csvfile)
     for row in reader:
         name = row['이름'].strip()
         birth = row['생년월일8자리(예.20040101)'].strip()
 
         if not birth.isdigit():
-            print(f"건너뜀: {name} - '{birth}'") 
+            print(f"비어있음: {name} - '{birth}'") 
             continue
 
         friend = Friend(name, birth)
