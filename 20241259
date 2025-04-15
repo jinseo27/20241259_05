@@ -1,0 +1,624 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "metadata": {
+    "colab": {
+     "base_uri": "https://localhost:8080/",
+     "height": 77
+    },
+    "id": "l82o3LfLMLDN",
+    "outputId": "f3025b79-69ad-4663-b0e5-8c22a59baeb2"
+   },
+   "outputs": [ 
+    {
+     "data": {
+      "text/html": [
+       "\n",
+       "     <input type=\"file\" id=\"files-5003d3bb-c3be-49ae-be34-560703d51b95\" name=\"files[]\" multiple disabled\n",
+       "        style=\"border:none\" />\n",
+       "     <output id=\"result-5003d3bb-c3be-49ae-be34-560703d51b95\">\n",
+       "      Upload widget is only available when the cell has been executed in the\n",
+       "      current browser session. Please rerun this cell to enable.\n",
+       "      </output>\n",
+       "      <script>// Copyright 2017 Google LLC\n",
+       "//\n",
+       "// Licensed under the Apache License, Version 2.0 (the \"License\");\n",
+       "// you may not use this file except in compliance with the License.\n",
+       "// You may obtain a copy of the License at\n",
+       "//\n",
+       "//      http://www.apache.org/licenses/LICENSE-2.0\n",
+       "//\n",
+       "// Unless required by applicable law or agreed to in writing, software\n",
+       "// distributed under the License is distributed on an \"AS IS\" BASIS,\n",
+       "// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n",
+       "// See the License for the specific language governing permissions and\n",
+       "// limitations under the License.\n",
+       "\n",
+       "/**\n",
+       " * @fileoverview Helpers for google.colab Python module.\n",
+       " */\n",
+       "(function(scope) {\n",
+       "function span(text, styleAttributes = {}) {\n",
+       "  const element = document.createElement('span');\n",
+       "  element.textContent = text;\n",
+       "  for (const key of Object.keys(styleAttributes)) {\n",
+       "    element.style[key] = styleAttributes[key];\n",
+       "  }\n",
+       "  return element;\n",
+       "}\n",
+       "\n",
+       "// Max number of bytes which will be uploaded at a time.\n",
+       "const MAX_PAYLOAD_SIZE = 100 * 1024;\n",
+       "\n",
+       "function _uploadFiles(inputId, outputId) {\n",
+       "  const steps = uploadFilesStep(inputId, outputId);\n",
+       "  const outputElement = document.getElementById(outputId);\n",
+       "  // Cache steps on the outputElement to make it available for the next call\n",
+       "  // to uploadFilesContinue from Python.\n",
+       "  outputElement.steps = steps;\n",
+       "\n",
+       "  return _uploadFilesContinue(outputId);\n",
+       "}\n",
+       "\n",
+       "// This is roughly an async generator (not supported in the browser yet),\n",
+       "// where there are multiple asynchronous steps and the Python side is going\n",
+       "// to poll for completion of each step.\n",
+       "// This uses a Promise to block the python side on completion of each step,\n",
+       "// then passes the result of the previous step as the input to the next step.\n",
+       "function _uploadFilesContinue(outputId) {\n",
+       "  const outputElement = document.getElementById(outputId);\n",
+       "  const steps = outputElement.steps;\n",
+       "\n",
+       "  const next = steps.next(outputElement.lastPromiseValue);\n",
+       "  return Promise.resolve(next.value.promise).then((value) => {\n",
+       "    // Cache the last promise value to make it available to the next\n",
+       "    // step of the generator.\n",
+       "    outputElement.lastPromiseValue = value;\n",
+       "    return next.value.response;\n",
+       "  });\n",
+       "}\n",
+       "\n",
+       "/**\n",
+       " * Generator function which is called between each async step of the upload\n",
+       " * process.\n",
+       " * @param {string} inputId Element ID of the input file picker element.\n",
+       " * @param {string} outputId Element ID of the output display.\n",
+       " * @return {!Iterable<!Object>} Iterable of next steps.\n",
+       " */\n",
+       "function* uploadFilesStep(inputId, outputId) {\n",
+       "  const inputElement = document.getElementById(inputId);\n",
+       "  inputElement.disabled = false;\n",
+       "\n",
+       "  const outputElement = document.getElementById(outputId);\n",
+       "  outputElement.innerHTML = '';\n",
+       "\n",
+       "  const pickedPromise = new Promise((resolve) => {\n",
+       "    inputElement.addEventListener('change', (e) => {\n",
+       "      resolve(e.target.files);\n",
+       "    });\n",
+       "  });\n",
+       "\n",
+       "  const cancel = document.createElement('button');\n",
+       "  inputElement.parentElement.appendChild(cancel);\n",
+       "  cancel.textContent = 'Cancel upload';\n",
+       "  const cancelPromise = new Promise((resolve) => {\n",
+       "    cancel.onclick = () => {\n",
+       "      resolve(null);\n",
+       "    };\n",
+       "  });\n",
+       "\n",
+       "  // Wait for the user to pick the files.\n",
+       "  const files = yield {\n",
+       "    promise: Promise.race([pickedPromise, cancelPromise]),\n",
+       "    response: {\n",
+       "      action: 'starting',\n",
+       "    }\n",
+       "  };\n",
+       "\n",
+       "  cancel.remove();\n",
+       "\n",
+       "  // Disable the input element since further picks are not allowed.\n",
+       "  inputElement.disabled = true;\n",
+       "\n",
+       "  if (!files) {\n",
+       "    return {\n",
+       "      response: {\n",
+       "        action: 'complete',\n",
+       "      }\n",
+       "    };\n",
+       "  }\n",
+       "\n",
+       "  for (const file of files) {\n",
+       "    const li = document.createElement('li');\n",
+       "    li.append(span(file.name, {fontWeight: 'bold'}));\n",
+       "    li.append(span(\n",
+       "        `(${file.type || 'n/a'}) - ${file.size} bytes, ` +\n",
+       "        `last modified: ${\n",
+       "            file.lastModifiedDate ? file.lastModifiedDate.toLocaleDateString() :\n",
+       "                                    'n/a'} - `));\n",
+       "    const percent = span('0% done');\n",
+       "    li.appendChild(percent);\n",
+       "\n",
+       "    outputElement.appendChild(li);\n",
+       "\n",
+       "    const fileDataPromise = new Promise((resolve) => {\n",
+       "      const reader = new FileReader();\n",
+       "      reader.onload = (e) => {\n",
+       "        resolve(e.target.result);\n",
+       "      };\n",
+       "      reader.readAsArrayBuffer(file);\n",
+       "    });\n",
+       "    // Wait for the data to be ready.\n",
+       "    let fileData = yield {\n",
+       "      promise: fileDataPromise,\n",
+       "      response: {\n",
+       "        action: 'continue',\n",
+       "      }\n",
+       "    };\n",
+       "\n",
+       "    // Use a chunked sending to avoid message size limits. See b/62115660.\n",
+       "    let position = 0;\n",
+       "    do {\n",
+       "      const length = Math.min(fileData.byteLength - position, MAX_PAYLOAD_SIZE);\n",
+       "      const chunk = new Uint8Array(fileData, position, length);\n",
+       "      position += length;\n",
+       "\n",
+       "      const base64 = btoa(String.fromCharCode.apply(null, chunk));\n",
+       "      yield {\n",
+       "        response: {\n",
+       "          action: 'append',\n",
+       "          file: file.name,\n",
+       "          data: base64,\n",
+       "        },\n",
+       "      };\n",
+       "\n",
+       "      let percentDone = fileData.byteLength === 0 ?\n",
+       "          100 :\n",
+       "          Math.round((position / fileData.byteLength) * 100);\n",
+       "      percent.textContent = `${percentDone}% done`;\n",
+       "\n",
+       "    } while (position < fileData.byteLength);\n",
+       "  }\n",
+       "\n",
+       "  // All done.\n",
+       "  yield {\n",
+       "    response: {\n",
+       "      action: 'complete',\n",
+       "    }\n",
+       "  };\n",
+       "}\n",
+       "\n",
+       "scope.google = scope.google || {};\n",
+       "scope.google.colab = scope.google.colab || {};\n",
+       "scope.google.colab._files = {\n",
+       "  _uploadFiles,\n",
+       "  _uploadFilesContinue,\n",
+       "};\n",
+       "})(self);\n",
+       "</script> "
+      ],
+      "text/plain": [
+       "<IPython.core.display.HTML object>"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Saving birthday.csv to birthday (1).csv\n"
+     ]
+    }
+   ],
+   "source": [
+    "from google.colab import files\n",
+    "uploaded = files.upload()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "467fbed8",
+   "metadata": {},
+   "source": [
+    "### 생일 찾기"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "5faa87bf",
+   "metadata": {},
+   "source": [
+    "### 생일 가장 느린 10명 찾기"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {
+    "colab": {
+     "base_uri": "https://localhost:8080/"
+    },
+    "id": "1ggW0pYwMWym",
+    "outputId": "1c2f562a-e11c-4d6a-82ba-690281fa2ee1"
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "생일이 가장 늦은 10명의 친구:\n",
+      "홍서연 (20241282)\n",
+      "신수민 (20051230)\n",
+      "이서영 (20051225)\n",
+      "강민주 (20051214)\n",
+      "김민경 (20051202)\n",
+      "이서영 (20051112)\n",
+      "배시은 (20051102)\n",
+      "김여원 (20051031)\n",
+      "이서진 (20051028)\n",
+      "서홍빈 (20051024)\n"
+     ]
+    }
+   ],
+   "source": [
+    "import csv\n",
+    "\n",
+    "\n",
+    "class Friend:\n",
+    "    def __init__(self, name, birth):\n",
+    "        self.name = name\n",
+    "        self.birth = birth\n",
+    "        self.birth_value = int(birth)\n",
+    "\n",
+    "    def __repr__(self):\n",
+    "        return f\"{self.name} ({self.birth})\"\n",
+    "\n",
+    "\n",
+    "class Heap:\n",
+    "    def __init__(self, *args):\n",
+    "        if len(args) != 0:\n",
+    "            self.__A = args[0]\n",
+    "        else:\n",
+    "            self.__A = []\n",
+    "\n",
+    "    def insert(self, x):\n",
+    "        self.__A.append(x)\n",
+    "        self.__percolateUp(len(self.__A)-1)\n",
+    "\n",
+    "    def __percolateUp(self, i: int):\n",
+    "        parent = (i - 1) // 2\n",
+    "        if i > 0 and self.__A[i][0] > self.__A[parent][0]:\n",
+    "            self.__A[i], self.__A[parent] = self.__A[parent], self.__A[i]\n",
+    "            self.__percolateUp(parent)\n",
+    "\n",
+    "    def deleteMax(self):\n",
+    "        if not self.isEmpty():\n",
+    "            max = self.__A[0]\n",
+    "            self.__A[0] = self.__A.pop()\n",
+    "            self.__percolateDown(0)\n",
+    "            return max\n",
+    "        return None\n",
+    "\n",
+    "    def __percolateDown(self, i: int):\n",
+    "        child = 2 * i + 1\n",
+    "        right = 2 * i + 2\n",
+    "        if child <= len(self.__A) - 1:\n",
+    "            if right <= len(self.__A) - 1 and self.__A[child][0] < self.__A[right][0]:\n",
+    "                child = right\n",
+    "            if self.__A[i][0] < self.__A[child][0]:\n",
+    "                self.__A[i], self.__A[child] = self.__A[child], self.__A[i]\n",
+    "                self.__percolateDown(child)\n",
+    "\n",
+    "    def isEmpty(self):\n",
+    "        return len(self.__A) == 0\n",
+    "\n",
+    "heap = Heap()\n",
+    "\n",
+    "with open(\"birthday.csv\", newline='', encoding='cp949') as csvfile:\n",
+    "    reader = csv.DictReader(csvfile)\n",
+    "    for row in reader:\n",
+    "        name = row['이름'].strip()\n",
+    "        birth = row['생년월일8자리(예.20040101)'].strip()\n",
+    "\n",
+    "        if not birth.isdigit():\n",
+    "            continue\n",
+    "\n",
+    "        friend = Friend(name, birth)\n",
+    "        heap.insert((friend.birth_value, friend))\n",
+    "\n",
+    "\n",
+    "\n",
+    "print(\"생일이 가장 늦은 10명의 친구:\")\n",
+    "for _ in range(10):\n",
+    "    if not heap.isEmpty():\n",
+    "        _, friend = heap.deleteMax()\n",
+    "        print(friend)\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "429ceb01",
+   "metadata": {},
+   "source": [
+    "### 우리 조원 생일 찾기"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "metadata": {
+    "colab": {
+     "base_uri": "https://localhost:8080/"
+    },
+    "id": "1294f6BhNPpN",
+    "outputId": "97f4f501-fbc0-48b2-8d95-db5cebebce54"
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "같은 조 친구들의 이름 - 생일:\n",
+      "김다연 - 20030304\n",
+      "김도경 - 20050923\n",
+      "김민영 - 20040210\n",
+      "김수련 - 20030110\n",
+      "김여원 - 20051031\n",
+      "김채린 - 20050123\n",
+      "안소형 - 20031022\n",
+      "오다현 - 20020505\n",
+      "윤서영 - 20050519\n",
+      "조예진 - 20040509\n",
+      "허재희 - 20050621\n",
+      "홍지연 - 20050203\n"
+     ]
+    }
+   ],
+   "source": [
+    "import csv\n",
+    "\n",
+    "class BidirectNode:\n",
+    "    def __init__(self, item, prev, next):\n",
+    "        self.item = item\n",
+    "        self.prev = prev\n",
+    "        self.next = next\n",
+    "\n",
+    "\n",
+    "class Friend:\n",
+    "    def __init__(self, name, birth):  # birth: yyyymmdd 형식\n",
+    "        self.name = name\n",
+    "        self.birth = birth\n",
+    "\n",
+    "    def __repr__(self):\n",
+    "        return f\"{self.name} ({self.birth})\"\n",
+    "\n",
+    "\n",
+    "same_team = {\n",
+    "    \"김수련\", \"오다현\", \"주영\", \"김다연\", \"김민영\", \"김여원\", \"김채린\", \"조예진\",\n",
+    "    \"허재희\", \"김도경\", \"안소형\", \"윤서영\", \"홍지연\"\n",
+    "}\n",
+    "\n",
+    "\n",
+    "class CircularDoublyLinkedList:\n",
+    "    def __init__(self):\n",
+    "        self.__head = BidirectNode(\"dummy\", None, None)\n",
+    "        self.__head.prev = self.__head\n",
+    "        self.__head.next = self.__head\n",
+    "        self.__numItems = 0\n",
+    "\n",
+    "    def append(self, newItem) -> None:\n",
+    "        prev = self.__head.prev\n",
+    "        newNode = BidirectNode(newItem, prev, self.__head)\n",
+    "        prev.next = newNode\n",
+    "        self.__head.prev = newNode\n",
+    "        self.__numItems += 1\n",
+    "\n",
+    "    def __iter__(self):\n",
+    "        return CircularDoublyLinkedListIterator(self)\n",
+    "\n",
+    "    def getNode(self, i: int) -> BidirectNode:\n",
+    "        curr = self.__head\n",
+    "        for _ in range(i + 1):\n",
+    "            curr = curr.next\n",
+    "        return curr\n",
+    "\n",
+    "class CircularDoublyLinkedListIterator:\n",
+    "    def __init__(self, alist):\n",
+    "        self.__head = alist.getNode(-1)\n",
+    "        self.iterPosition = self.__head.next\n",
+    "\n",
+    "    def __next__(self):\n",
+    "        if self.iterPosition == self.__head:\n",
+    "            raise StopIteration\n",
+    "        else:\n",
+    "            item = self.iterPosition.item\n",
+    "            self.iterPosition = self.iterPosition.next\n",
+    "            return item\n",
+    "\n",
+    "    def __iter__(self):\n",
+    "        return self\n",
+    "\n",
+    "\n",
+    "friend_list = CircularDoublyLinkedList()\n",
+    "\n",
+    "\n",
+    "with open(\"birthday.csv\", newline='', encoding='euc-kr') as csvfile:\n",
+    "    reader = csv.DictReader(csvfile)\n",
+    "    for row in reader:\n",
+    "        name = row['이름'].strip()\n",
+    "        birth = row['생년월일8자리(예.20040101)'].strip()\n",
+    "\n",
+    "        if not birth.isdigit():\n",
+    "            continue\n",
+    "\n",
+    "        friend = Friend(name, birth)\n",
+    "        friend_list.append(friend)\n",
+    "\n",
+    "\n",
+    "print(\"같은 조 친구들의 이름 - 생일:\")\n",
+    "for friend in friend_list:\n",
+    "    if friend.name in same_team:\n",
+    "        print(f\"{friend.name} - {friend.birth}\")\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "ad806b08",
+   "metadata": {},
+   "source": [
+    "# 힙(Heap) 관련 연습문제 풀이"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "7f912a7a",
+   "metadata": {},
+   "source": [
+    "## 문제 1\n",
+    "01. 최대 힙에서는 가장 큰 원소가 항상 루트에 있다. 즉, 루트의 깊이가 가장 얕다. 임의의 최대 힙에서 더 밑은 곳에 있는 원소가 더 깊은 곳에 있는 원소보다 더 작은 값을 가질 수 있는가?"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "47f324c3",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "같은 깊이에 있는 형제 노드 간에는 크기의 제약이 없기 때문에 더 많은 곳에 있는 원소가 더 깊은 곳에 있는 원소보다 클 수 있다.\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "ff572e8b",
+   "metadata": {},
+   "source": [
+    "## 문제 2\n",
+    "02. 최대 힙 A[0..n-1]에서 A[0]은 항상 가장 큰 값을 갖고 있다. 반대로 마지막 원소인 A[n-1]은 항상 가장 작은 값을 갖는가?"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "a5023e04",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "A[n-1]은 힙 구조에서 마지막 원소일 뿐이기 때문에, 가장 작은 값을 갖는다는 보장은 없다..\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "a7195db0",
+   "metadata": {},
+   "source": [
+    "## 문제 3\n",
+    "03. 임의의 리스트 A[0..n-1]을 힙으로 만드는 buildHeap() 알고리즘에서 총 n개의 원소 중 루트의 자식으로 스며버리기를 할지 말지 알아보지 않고 그냥 넘어가는 원소(힙의 노드) 수는 정확하게 몇 개인가?"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "cf3eb664",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "n개의 원소 중 n/2 개는 스며내리기를 수행하지 않고 그냥 넘긴다. \n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "628200b0",
+   "metadata": {},
+   "source": [
+    "## 문제 4\n",
+    "04. 리스트 A[0..n-1]을 대상으로 하는 스며버리기 알고리즘에서, 최악의 경우에 해당하는 시간과 최선의 경우에 해당하는 시간은 어떻게 되는가? Θ-표기로 나타내시오."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "fe3a94a0",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "Θ(log n)\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "13da87d7",
+   "metadata": {},
+   "source": [
+    "## 문제 5\n",
+    "05. 힙의 상태에서 원소 삭제는 루트 노드를 대상으로 한다. 다른 경우는 존재하지 않는다. 테스트 목적으로 힙의 맨 마지막 원소를 삭제하는 작업을 요구한다면 간단한 일인가?"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "ac8f77f0",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "힙에서는 배열의 마지막 원소는 직접 삭제해도 힙 구조에 영향을 주지 않기 때문에 간단한 일이다.\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "7fad9981",
+   "metadata": {},
+   "source": [
+    "## 문제 6\n",
+    "06. 어떤 학생이 다음과 같은 질문을 했다. 'buildHeap() 알고리즘에서는 아래쪽에서부터 시작해서 스며버리기를 반복하는데, 만약 반대 방향으로 하면 어떨까요? (즉, 위쪽에서부터 시작해서 스며오르기를 반복)' 이렇게 해도 힙이 만들어진다. 이 방법은 본문에 제시한 방법에 비해 더 효율적인가? 점근적 시간으로 말하시오."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "4763cc6b",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "bottom-up 방식은 O(n) 시간이고, 위에서부터 하는 방식은 O(n log n)이므로 더 느리기 때문에 탑다운 방식은 비효율적이다.\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "45abdc9d",
+   "metadata": {},
+   "source": [
+    "## 문제 7\n",
+    "07. n개의 원소로 이루어진 최대 힙에서 임의의 원소 값이 증가했을 때 O(logn) 시간에 이를 반영해서 힙을 수선할 수 있다. 어떻게 하면 되는지 그 과정을 기술하시오."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "08538c29",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "스며올리기를 수행한다. 증가한 노드와 부모 노드를 비교하며 조건을 만족할 때까지 위로 올라간다. 이 작업은 O(log n) 시간에 수행된다.\n"
+   ]
+  }
+ ],
+ "metadata": {
+  "colab": {
+   "provenance": []
+  },
+  "kernelspec": {
+   "display_name": "Python 3",
+   "name": "python3"
+  },
+  "language_info": {
+   "name": "python"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 0
+}
