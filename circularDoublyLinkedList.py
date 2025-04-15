@@ -65,7 +65,7 @@ class CircularDoublyLinkedListIterator:
 friend_list = CircularDoublyLinkedList()
 
 
-with open("C:/Users/2leej/Downloads/DS_Birthdaydata - 시트1.csv", newline='', encoding='utf-8') as csvfile:
+with open("birthday.csv", newline='') as csvfile:
     reader = csv.DictReader(csvfile)
     for row in reader:
         name = row['이름'].strip()
